@@ -268,7 +268,6 @@
     }
     
     async function sendVote(box) {
-        // La votación ahora se envía como GET para evitar errores CORS
         if (document.getElementById('status').textContent.includes('CLOSED')) {
              alert('Voting is CLOSED and votes cannot be sent.');
              return;
@@ -281,7 +280,7 @@
         });
 
         try {
-            // CORRECCIÓN: Usamos GET para votar, con el parámetro 'action=vote'
+            // USAMOS GET para evitar CORS
             const response = await fetch(`${URL_API_APPSCRIPT}?action=vote&caja=${box}`, { method: 'GET' });
             const data = await response.json();
             
