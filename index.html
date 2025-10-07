@@ -137,7 +137,7 @@
         }
         
         #btn-start-session { 
-            background-color: #28a745; /* Verde principal para el único botón */
+            background-color: #28a745;
         }
         #btn-start-session:hover { 
             background-color: #1e7e34;
@@ -205,7 +205,8 @@
     </div>
 
     <div id="participant-view">
-        </div>
+        
+    </div>
 
     <div id="management-view" class="controls hidden">
         <h3>Control Panel</h3>
@@ -219,9 +220,8 @@
     // **VERIFICA Y REEMPLAZA ESTA URL CON LA DE TU APPS SCRIPT**
     const URL_API_APPSCRIPT = 'https://script.google.com/macros/s/AKfycbzLpNYHflnJ0CdEPtPzhD17qCk2pbly5H5S9OVfBa7_PWqDsWiKdZQhNcF5QRTD9yfqZw/exec'; 
     
-    // Tasa de refresco más fluida (5 segundos)
-    const REFRESH_INTERVAL = 5000; 
-    const TIMER_DURATION_SECONDS = 60; 
+    const REFRESH_INTERVAL = 5000; // 5 segundos
+    const TIMER_DURATION_SECONDS = 60; // 60 segundos (1 minuto)
 
     let isManagementMode = false;
     let autoRefreshInterval = null;
@@ -236,16 +236,15 @@
         if (!isManagementMode) return;
         
         const btnStart = document.getElementById('btn-start-session');
-        if (btnStart) btnStart.disabled = true; // Deshabilitar para prevenir doble clic
+        if (btnStart) btnStart.disabled = true;
 
-        // 1. CONFIRMAR Y LIMPIAR VOTOS
         if (!confirm("Start Voting Session? All previous votes will be cleared.")) {
             if (btnStart) btnStart.disabled = false;
             return;
         }
 
         try {
-            // Llamar a la API para limpiar votos y cerrar el estado.
+            // 1. LIMPIAR VOTOS
             const clearResponse = await fetch(URL_API_APPSCRIPT + `?action=clearVotes`, { method: 'GET' });
             const clearData = await clearResponse.json();
             
@@ -269,6 +268,7 @@
     }
     
     async function sendVote(box) {
+        // La votación ahora se envía como GET para evitar errores CORS
         if (document.getElementById('status').textContent.includes('CLOSED')) {
              alert('Voting is CLOSED and votes cannot be sent.');
              return;
@@ -281,16 +281,19 @@
         });
 
         try {
-            await fetch(URL_API_APPSCRIPT, {
-                method: 'POST',
-                mode: 'no-cors', 
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: JSON.stringify({ caja: box })
-            });
-            await getTotals(); 
-            alert(`Vote sent for BOX ${box}!`);
+            // CORRECCIÓN: Usamos GET para votar, con el parámetro 'action=vote'
+            const response = await fetch(`${URL_API_APPSCRIPT}?action=vote&caja=${box}`, { method: 'GET' });
+            const data = await response.json();
+            
+            if (data.success) {
+                await getTotals(); 
+                alert(`Vote sent for BOX ${box}!`);
+            } else {
+                 alert(`Error sending vote: ${data.message}`);
+            }
+
         } catch (error) {
-            alert(`Error sending vote.`);
+            alert(`Error sending vote: ${error.message}`);
         } finally {
              boxes.forEach(id => {
                 const boxEl = document.getElementById(id);
@@ -303,7 +306,6 @@
     // FUNCIONES AUXILIARES (UI, API y Lógica Interna)
     // -------------------------------------------------------------
 
-    // Función para obtener los totales y el estado (incluyendo el ganador si ya fue revelado)
     async function getTotals() {
         try {
             const response = await fetch(URL_API_APPSCRIPT);
@@ -318,7 +320,6 @@
         }
     }
 
-    // Función para cambiar el estado de Votación
     async function toggleVotingStatus(status, showAlert = true) {
         if (status === 'CLOSED') {
             stopTimer();
@@ -339,7 +340,6 @@
         }
     }
 
-    // Nueva función de temporizador simplificada (inicia la cuenta regresiva)
     function startTimer() {
         stopTimer();
         
@@ -356,10 +356,10 @@
                 stopTimer();
                 
                 // 4. CERRAR Y REVELAR AUTOMÁTICAMENTE
-                await toggleVotingStatus('CLOSED', false); // Cierra sin alerta
+                await toggleVotingStatus('CLOSED', false);
                 
                 const btnStart = document.getElementById('btn-start-session');
-                if (btnStart) btnStart.disabled = false; // Habilitar botón para la siguiente sesión
+                if (btnStart) btnStart.disabled = false;
 
                 // 5. REVELAR GANADOR
                 try {
@@ -429,13 +429,11 @@
         if (votingStatus === 'OPEN') {
             statusElement.innerHTML = `✅ **Voting is OPEN**. <span id="timer-display" style="margin-left: 20px;"></span>`;
             
-            // Si el admin abre la sesión, queremos que el contador empiece en 60s en su pantalla.
             if (isManagementMode) {
                 const btnStart = document.getElementById('btn-start-session');
                 if (btnStart) btnStart.disabled = false;
             }
             
-            // Habilitar botones para votantes
             if (!isManagementMode) {
                 boxes.forEach(id => {
                     const boxEl = document.getElementById(id);
@@ -464,6 +462,7 @@
         if (votesC) votesC.textContent = data.totals.C;
 
         // 3. MOSTRAR GANADOR (SI FUE REVELADO)
+        const resultEl = document.getElementById('result');
         if (data.winner && data.winner.box) {
             const winner = data.winner;
             let messageHTML = '';
@@ -477,11 +476,9 @@
             } else {
                 messageHTML = `<p>⚠️ Nobody voted! </p>`;
             }
-            const resultEl = document.getElementById('result');
             if(resultEl) resultEl.innerHTML = messageHTML;
         } else {
             // Limpiar resultados si no hay ganador revelado
-            const resultEl = document.getElementById('result');
             if(resultEl) resultEl.innerHTML = '';
         }
     }
